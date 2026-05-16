@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# VMware bundle files (large, machine-specific, never commit)
+*.vmwarevm/
+*.vmx
+*.vmdk
+*.nvram
+*.vmsd
+*.vmsn
+*.vmss
+*.log
+*.lck/
+
+# ISOs (large, easily re-downloaded)
+*.iso
+
+# Sensitive — never commit
+secrets/
+credentials.*
+*.key
+*.pem
+known_hosts
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Temp / scratch
+scratch/
+tmp/
+*.tmp
+*.bak
