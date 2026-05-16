@@ -34,3 +34,6 @@ scratch/
 tmp/
 *.tmp
 *.bak
+
+# Personal coaching notes — never push these
+_personal/

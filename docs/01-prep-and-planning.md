@@ -9,11 +9,11 @@
 - A finished network diagram and IP plan committed to the repo
 - All ISOs downloaded and stored locally in one organised folder
 - The `Enterprise-Lab` repo created on GitHub with an initial commit pushed
-- A snapshot in your head of exactly what gets built in each future session
+- A clear picture of exactly what gets built in each future session
 
 ## 1. Lock the IP plan
 
-Every VM gets a static IP. DHCP is enabled on each segment for guest devices, but the lab VMs themselves use static assignments so nothing moves around.
+Every VM gets a static IP. DHCP is enabled on each segment for guest devices, but the lab VMs themselves use static assignments so nothing moves around between reboots.
 
 | VM             | Role                       | Segment    | IP            | Hostname       |
 | -------------- | -------------------------- | ---------- | ------------- | -------------- |
@@ -30,22 +30,20 @@ DHCP ranges (handed out by pfSense) reserve `.100–.200` per segment for ad-hoc
 
 ## 2. Firewall rule design
 
-You'll implement these in Session 3. Documenting them now means you build with intent, not by trial and error.
+You'll implement these rules in Session 3. Documenting them now means you build with intent, not by trial and error.
 
-**Default policy:** deny all inter-segment traffic. Allow rules below override.
+**Default policy:** deny all inter-segment traffic. The allow rules below override the default.
 
 | From      | To        | Allowed                                                  | Why                                                           |
 | --------- | --------- | -------------------------------------------------------- | ------------------------------------------------------------- |
-| MGMT      | CORP      | RDP (3389), SMB (445), WinRM (5985–6), ICMP              | Kali admins Windows boxes                                     |
-| MGMT      | SERVERS   | SSH (22), HTTPS (443), Wazuh dashboard (443/5601)         | Kali admins the SIEM                                          |
-| MGMT      | DMZ       | All                                                       | Kali is the attacker — needs full DMZ reach                  |
-| CORP      | SERVERS   | 1514/1515 (Wazuh agent), 53 (DNS), 123 (NTP)             | Agents send logs; clients use DNS/NTP from internal servers   |
-| SERVERS   | CORP      | ESTABLISHED only                                          | SIEM doesn't initiate to clients, only responds              |
-| CORP      | DMZ       | DENY                                                      | No legitimate reason for users to reach vulnerable hosts      |
-| DMZ       | ANY       | DENY (egress)                                             | Vulnerable hosts must not call out; contains compromises      |
-| ANY       | WAN       | HTTP/HTTPS/DNS/NTP for MGMT, CORP, SERVERS only           | DMZ has no internet                                           |
-
-This is the kind of thinking that shows up well in interviews: not "I built a lab," but "I segmented it and here's why traffic X is allowed but Y is denied."
+| MGMT      | CORP      | RDP (3389), SMB (445), WinRM (5985–6), ICMP              | Kali admins the Windows hosts                                 |
+| MGMT      | SERVERS   | SSH (22), HTTPS (443), Wazuh dashboard (5601)            | Kali admins the SIEM                                          |
+| MGMT      | DMZ       | All                                                      | The attacker box needs full reach into the DMZ                |
+| CORP      | SERVERS   | 1514/1515 (Wazuh agent), 53 (DNS), 123 (NTP)             | Agents send logs; clients use internal DNS/NTP                |
+| SERVERS   | CORP      | ESTABLISHED only                                         | The SIEM doesn't initiate to clients, only responds           |
+| CORP      | DMZ       | DENY                                                     | No legitimate reason for users to reach vulnerable hosts      |
+| DMZ       | ANY       | DENY (egress)                                            | Vulnerable hosts must not call out — contains compromises     |
+| ANY       | WAN       | HTTP/HTTPS/DNS/NTP for MGMT, CORP, SERVERS only          | DMZ has no internet                                           |
 
 ## 3. ISO and image downloads
 
@@ -61,9 +59,7 @@ Start these in the background while you finish the rest of Session 1. Save them 
 | Metasploitable2            | https://sourceforge.net/projects/metasploitable/                                            | ~870 MB     |
 | DVWA                       | https://github.com/digininja/DVWA — clone repo, deploy onto Ubuntu later                    | <50 MB      |
 
-Microsoft evaluation downloads require a free Microsoft account. The "180-day" Server eval and "90-day" Win 11 eval are sufficient — they can be reset a few times if you need longer.
-
-> **Screenshot moment:** capture the download pages for the writeup. Recruiters reading this will appreciate seeing you sourcing things from legitimate vendors, not random forums.
+Microsoft evaluation downloads require a free Microsoft account. The 180-day Server eval and 90-day Win 11 eval are sufficient — they can be reset a few times if you need longer.
 
 ## 4. Naming conventions
 
@@ -79,7 +75,7 @@ A small thing that adds polish. Used consistently across VMs, hostnames, AD user
 
 ## 5. Create the GitHub repo
 
-1. Sign in at github.com as `lukeanwar`.
+1. Sign in at github.com.
 2. New repository → name `Enterprise-Lab`, public, **do not** add a README or .gitignore (we have ours already).
 3. On your Mac, in Terminal:
 
@@ -89,13 +85,11 @@ A small thing that adds polish. Used consistently across VMs, hostnames, AD user
    git branch -M main
    git add .
    git commit -m "Session 1: initial repo skeleton, network design, ISO plan"
-   git remote add origin git@github.com:lukeanwar/Enterprise-Lab.git
+   git remote add origin https://github.com/<your-username>/Enterprise-Lab.git
    git push -u origin main
    ```
 
-   If you haven't set up SSH keys for GitHub, swap the remote URL for the HTTPS one shown on the repo page.
-
-> **Screenshot moment:** the GitHub page showing the repo live with your first commit. This goes in `screenshots/01-prep/`.
+   If you haven't authenticated git with GitHub before, the easiest path on macOS is to install [GitHub CLI](https://cli.github.com/) (`brew install gh`) and run `gh auth login` once. It handles credentials for HTTPS pushes automatically via the macOS Keychain.
 
 ## 6. Verify before closing the session
 
@@ -103,14 +97,11 @@ A small thing that adds polish. Used consistently across VMs, hostnames, AD user
 - [ ] `Enterprise-Lab` repo exists publicly on GitHub
 - [ ] First commit visible on the repo page
 - [ ] README renders correctly on GitHub (network diagram displays)
-- [ ] Screenshots saved into `screenshots/01-prep/`
-- [ ] You can articulate, out loud and from memory, why MGMT can reach DMZ but CORP cannot
+- [ ] You can explain why MGMT can reach the DMZ but CORP cannot
 
-That last one matters. If you can explain it cleanly, you've internalised the design.
+## Lessons learned
 
-## Lessons learned (fill in at end of session)
-
-> Write 2–3 sentences here at the end of the session — what surprised you, what you'd do differently, what took longer than expected. This is the part recruiters read.
+_Filled in at the end of the session._
 
 ---
 
