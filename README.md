@@ -33,9 +33,9 @@ Inter-segment traffic is denied by default. Allow rules are explicit and documen
 
 | # | Session                              | Status        |
 |---|--------------------------------------|---------------|
-| 1 | Prep & planning                      | In progress   |
-| 2 | VMware Fusion custom networking      | Not started   |
-| 3 | pfSense install & firewall rules     | Not started   |
+| 1 | Prep & planning                      | Complete      |
+| 2 | VMware Fusion custom networking      | Complete      |
+| 3 | pfSense install & firewall rules     | In progress   |
 | 4 | Active Directory build               | Not started   |
 | 5 | Domain clients & GPOs                | Not started   |
 | 6 | Ubuntu Server + Wazuh SIEM           | Not started   |

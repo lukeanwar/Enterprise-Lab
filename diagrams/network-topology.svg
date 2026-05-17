@@ -43,7 +43,7 @@
   <!-- MGMT segment -->
   <rect x="40" y="290" width="240" height="170" rx="10" class="seg-mgmt" stroke-width="1.5"/>
   <text x="160" y="312" text-anchor="middle" class="seg-label">MGMT</text>
-  <text x="160" y="328" text-anchor="middle" class="subnet">10.10.10.0/24 — gw .1</text>
+  <text x="160" y="328" text-anchor="middle" class="subnet">10.10.10.0/24 — gw .254</text>
 
   <rect x="80" y="350" width="160" height="60" rx="6" class="vm-box"/>
   <text x="160" y="372" text-anchor="middle" class="vm-label">KALI01</text>
@@ -53,7 +53,7 @@
   <!-- CORP segment -->
   <rect x="300" y="290" width="240" height="280" rx="10" class="seg-corp" stroke-width="1.5"/>
   <text x="420" y="312" text-anchor="middle" class="seg-label">CORP</text>
-  <text x="420" y="328" text-anchor="middle" class="subnet">10.10.20.0/24 — gw .1</text>
+  <text x="420" y="328" text-anchor="middle" class="subnet">10.10.20.0/24 — gw .254</text>
 
   <rect x="340" y="350" width="160" height="60" rx="6" class="vm-box"/>
   <text x="420" y="372" text-anchor="middle" class="vm-label">WIN-DC01</text>
@@ -72,7 +72,7 @@
   <!-- SERVERS segment -->
   <rect x="560" y="290" width="240" height="170" rx="10" class="seg-srv" stroke-width="1.5"/>
   <text x="680" y="312" text-anchor="middle" class="seg-label">SERVERS</text>
-  <text x="680" y="328" text-anchor="middle" class="subnet">10.10.30.0/24 — gw .1</text>
+  <text x="680" y="328" text-anchor="middle" class="subnet">10.10.30.0/24 — gw .254</text>
 
   <rect x="600" y="350" width="160" height="60" rx="6" class="vm-box"/>
   <text x="680" y="372" text-anchor="middle" class="vm-label">LIN-SIEM01</text>
@@ -83,7 +83,7 @@
   <rect x="820" y="290" width="140" height="280" rx="10" class="seg-dmz" stroke-width="1.5"/>
   <text x="890" y="312" text-anchor="middle" class="seg-label">DMZ</text>
   <text x="890" y="328" text-anchor="middle" class="subnet">10.10.40.0/24</text>
-  <text x="890" y="343" text-anchor="middle" class="subnet">gw .1 — no egress</text>
+  <text x="890" y="343" text-anchor="middle" class="subnet">gw .254 — no egress</text>
 
   <rect x="836" y="360" width="108" height="55" rx="6" class="vm-box"/>
   <text x="890" y="380" text-anchor="middle" class="vm-label">LIN-WEB01</text>

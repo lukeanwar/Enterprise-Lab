@@ -15,10 +15,10 @@
 
 Every VM gets a static IP. DHCP is enabled on each segment for guest devices, but the lab VMs themselves use static assignments so nothing moves around between reboots.
 
-| VM             | Role                       | Segment    | IP            | Hostname       |
-| -------------- | -------------------------- | ---------- | ------------- | -------------- |
-| pfSense-FW01   | Firewall                   | All        | .1 on each    | pfsense-fw01   |
-| KALI01         | Attacker / jump box        | MGMT       | 10.10.10.10   | kali01         |
+| VM             | Role                       | Segment    | IP             | Hostname       |
+| -------------- | -------------------------- | ---------- | -------------- | -------------- |
+| pfSense-FW01   | Firewall                   | All        | .254 on each   | pfsense-fw01   |
+| KALI01         | Attacker / jump box        | MGMT       | 10.10.10.10    | kali01         |
 | WIN-DC01       | Active Directory DC + DNS  | CORP       | 10.10.20.10   | dc01           |
 | WIN-CLI01      | Windows 11 client          | CORP       | 10.10.20.20   | cli01          |
 | WIN-CLI02      | Windows 11 client (opt.)   | CORP       | 10.10.20.21   | cli02          |
@@ -26,7 +26,7 @@ Every VM gets a static IP. DHCP is enabled on each segment for guest devices, bu
 | LIN-WEB01      | Ubuntu + DVWA              | DMZ        | 10.10.40.10   | web01          |
 | META01         | Metasploitable2            | DMZ        | 10.10.40.20   | meta01         |
 
-DHCP ranges (handed out by pfSense) reserve `.100–.200` per segment for ad-hoc VMs you might spin up later.
+pfSense itself uses `.254` on every segment — putting the firewall at the top of the address space avoids a conflict with VMware Fusion's automatic `.1` assignment for the host on the MGMT vmnet. DHCP ranges (handed out by pfSense) reserve `.100–.200` per segment for ad-hoc VMs you might spin up later.
 
 ## 2. Firewall rule design
 
