@@ -214,6 +214,24 @@ Go to **Firewall → Aliases → Ports → Add** for each alias below. For each 
 | 123  | NTP                        |
 | 443  | HTTPS                      |
 
+### Step 1b — Create the internal-networks alias
+
+The egress rules below say "to the internet but not to any internal segment." Express that by creating a network alias listing every internal subnet, then using an inverted destination match. This is how production firewalls scope egress — "destination `any`" is too permissive because it includes internal traffic on the same ports.
+
+Go to **Firewall → Aliases → IP → Add**:
+
+**`RFC1918_Internal`** — Type: `Network(s)` — Description: *All lab segments + WAN-side NAT, used to scope internet egress rules*
+
+| Network          | Description           |
+| ---------------- | --------------------- |
+| `10.10.10.0/24`  | MGMT segment          |
+| `10.10.20.0/24`  | CORP segment          |
+| `10.10.30.0/24`  | SERVERS segment       |
+| `10.10.40.0/24`  | DMZ segment           |
+| `192.168.2.0/24` | WAN-side (Mac NAT)    |
+
+Save, then **Apply Changes**. In rules below, where the destination is shown as `!RFC1918_Internal`, this means "tick the **Invert match** box in the Destination section and enter `RFC1918_Internal` as the destination alias." The resulting rule matches everything **except** the internal subnets — i.e. the actual internet.
+
 In the firewall rule editor later, you'll reference an alias by leaving the **Destination Port Range From** dropdown on `(other)` and typing the alias name into the **Custom** field. pfSense auto-suggests as you type.
 
 ### Step 2 — Build the rules
@@ -236,7 +254,9 @@ Leave the auto-generated "Anti-Lockout Rule" alone — it stops you accidentally
 | Pass   | ICMP     | MGMT net   | CORP net        | any                     | Ping/troubleshooting               |
 | Pass   | TCP      | MGMT net   | SERVERS net     | 22                      | SSH to Ubuntu/SIEM                 |
 | Pass   | TCP      | MGMT net   | SERVERS net     | `Wazuh_Dashboard_Ports` | Wazuh dashboard                    |
-| Pass   | TCP/UDP  | MGMT net   | WAN net         | `Internet_Egress_Ports` | Internet egress                    |
+| Pass   | TCP/UDP  | MGMT net   | `!RFC1918_Internal` | `Internet_Egress_Ports` | Internet egress                |
+
+> **Why destination is `any` on the egress rules:** in pfSense, "WAN net" (or "WAN subnets") only matches traffic destined for IPs inside the directly-attached WAN subnet — i.e. the gateway range like `192.168.2.0/24`. It does **not** match traffic destined for the actual public internet (`1.1.1.1`, `8.8.8.8`, etc.). The destination for an "allow out to the internet" rule must be `any`. pfSense's routing table and outbound NAT then take care of sending the matched traffic out through the WAN interface.
 
 ### CORP tab
 
@@ -246,7 +266,7 @@ Leave the auto-generated "Anti-Lockout Rule" alone — it stops you accidentally
 | Pass   | TCP      | CORP net   | SERVERS net     | `Wazuh_Agent_Ports`     | Wazuh agent to SIEM                |
 | Pass   | TCP/UDP  | CORP net   | SERVERS net     | 53                      | Internal DNS                       |
 | Pass   | UDP      | CORP net   | SERVERS net     | 123                     | Internal NTP                       |
-| Pass   | TCP/UDP  | CORP net   | WAN net         | `Internet_Egress_Ports` | Internet egress                    |
+| Pass   | TCP/UDP  | CORP net   | `!RFC1918_Internal` | `Internet_Egress_Ports` | Internet egress                |
 
 Enable logging on the explicit deny rule so you can see attempts to break the policy.
 
@@ -254,7 +274,7 @@ Enable logging on the explicit deny rule so you can see attempts to break the po
 
 | Action | Protocol | Source       | Destination | Dest. ports             | Description                |
 | ------ | -------- | ------------ | ----------- | ----------------------- | -------------------------- |
-| Pass   | TCP/UDP  | SERVERS net  | WAN net     | `Internet_Egress_Ports` | Patching/updates           |
+| Pass   | TCP/UDP  | SERVERS net  | `!RFC1918_Internal` | `Internet_Egress_Ports` | Patching/updates       |
 
 Return traffic from SERVERS to CORP (Wazuh agent responses) is handled automatically by pfSense's state tracking — no explicit allow rule needed. SERVERS should not initiate connections to MGMT, CORP, or DMZ, so there are no further pass rules.
 

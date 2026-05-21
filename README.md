@@ -35,12 +35,12 @@ Inter-segment traffic is denied by default. Allow rules are explicit and documen
 |---|--------------------------------------|---------------|
 | 1 | Prep & planning                      | Complete      |
 | 2 | VMware Fusion custom networking      | Complete      |
-| 3 | pfSense install & firewall rules     | In progress   |
-| 4 | Active Directory build               | Not started   |
+| 3 | pfSense install & firewall rules     | Complete      |
+| 4 | Active Directory build               | Complete      |
 | 5 | Domain clients & GPOs                | Not started   |
 | 6 | Ubuntu Server + Wazuh SIEM           | Not started   |
 | 7 | Vulnerable targets in DMZ            | Not started   |
-| 8 | Suricata IDS on pfSense              | Not started   |
+| 8 | Suricata IDS + pfBlockerNG threat intel | Not started |
 | 9 | Kali attack box                      | Not started   |
 | 10 | Detection scenarios + v1 polish     | Not started   |
 
