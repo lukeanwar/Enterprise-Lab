@@ -37,7 +37,7 @@ Inter-segment traffic is denied by default. Allow rules are explicit and documen
 | 2 | VMware Fusion custom networking      | Complete      |
 | 3 | pfSense install & firewall rules     | Complete      |
 | 4 | Active Directory build               | Complete      |
-| 5 | Domain clients & GPOs                | Not started   |
+| 5 | Domain clients & GPOs                | Complete      |
 | 6 | Ubuntu Server + Wazuh SIEM           | Not started   |
 | 7 | Vulnerable targets in DMZ            | Not started   |
 | 8 | Suricata IDS + pfBlockerNG threat intel | Not started |
