@@ -38,7 +38,7 @@ Inter-segment traffic is denied by default. Allow rules are explicit and documen
 | 3 | pfSense install & firewall rules     | Complete      |
 | 4 | Active Directory build               | Complete      |
 | 5 | Domain clients & GPOs                | Complete      |
-| 6 | Ubuntu Server + Wazuh SIEM           | Not started   |
+| 6 | Ubuntu Server + Wazuh SIEM           | In progress   |
 | 7 | Vulnerable targets in DMZ            | Not started   |
 | 8 | Suricata IDS + pfBlockerNG threat intel | Not started |
 | 9 | Kali attack box                      | Not started   |

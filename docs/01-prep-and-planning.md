@@ -101,7 +101,15 @@ A small thing that adds polish. Used consistently across VMs, hostnames, AD user
 
 ## Lessons learned
 
-_Filled in at the end of the session._
+**Designing the firewall rules before building anything was the most valuable hour of this session.** Writing the segment table and the allow list up front meant every later decision had a reference to check against. The alternative — standing up the firewall and then working out what should be permitted — leads to rules added reactively whenever something breaks, which is how real networks end up with permissive rulesets nobody can justify.
+
+**Deciding naming conventions early pays off repeatedly.** `WIN-DC01`, `adm-luke`, `svc-wazuh`, `firstname.lastname` — trivial choices in isolation, but they made every subsequent session faster because there was never a question about what to call something. It also makes the repo readable to someone who wasn't there.
+
+**Git authentication on macOS is not obvious.** The first push failed with an SSH permission error because no key was set up. Installing GitHub CLI (`brew install gh`, then `gh auth login`) and using HTTPS was far simpler than generating and registering an SSH key — `gh` stores credentials in the macOS Keychain and Git picks them up automatically.
+
+**A stray apostrophe will hang your shell.** Pasting a command with a comment containing "you're" into zsh opened an unterminated quoted string and left the terminal sitting at a `quote>` prompt. Ctrl+C to escape, and paste commands without prose attached.
+
+**Evaluation licences are a real constraint worth planning around.** Windows Server 2022 gives 180 days and Windows 11 Enterprise gives 90. That's ample for a ten-session build, but it puts a clock on the lab that's worth knowing about before investing time in it.
 
 ---
 

@@ -94,7 +94,15 @@ Why this matters: AD's Kerberos authentication is sensitive to clock skew. If th
 
 Why we can't rely on automatic NTP sync at this stage: the DC's DNS server is currently set to `127.0.0.1`, ready for the AD install in the next section. But until AD DS is installed, no DNS service is actually running on `127.0.0.1`. That means Windows cannot resolve `time.windows.com` (or any other external NTP hostname) and the automatic time sync silently fails. Setting the time manually is the simplest way through this chicken-and-egg problem.
 
-Once the DC is promoted in Section 5 below, its own DNS service will be running, `time.windows.com` will resolve through it, your CORP firewall rule already allows UDP 123 to non-internal destinations, and you can turn automatic time sync back on. Windows will then pull a proper NTP sync and keep itself accurate from there.
+Once the DC is promoted in Section 5 below, its own DNS service will be running and `time.windows.com` will resolve through it.
+
+> **Follow-up — how time sync was ultimately handled in this lab.** Leaving the DC on manual time caused problems later. Because the host is a laptop that sleeps regularly, the guest clocks drifted badly — the DC ended up over an hour behind real time, and the drift was still growing. Windows time sync could not correct it: `w32tm /resync` returned "the computer did not resync because no time data was available", because the CORP egress rule permits TCP but NTP is UDP/123.
+>
+> Two options at that point. The production-correct one is to make the PDC emulator authoritative, point it at an internal NTP source (pfSense), allow UDP/123 to the firewall itself, and let domain members inherit time from the domain hierarchy. The pragmatic one for a laptop-hosted lab is to enable **Synchronize guest time with host** in the VM's Fusion settings and disable pfSense's NTP server, letting the hypervisor keep every guest honest.
+>
+> This lab uses the second. In a real environment you would not do this — host time sync is explicitly discouraged on domain controllers, because the domain should be authoritative for its own time rather than a downstream consumer of the hypervisor's clock. But on hardware that suspends several times a day, NTP cannot discipline a clock that keeps losing large chunks of time, and the resulting skew breaks Kerberos and corrupts log timestamps.
+>
+> Time synchronisation is security infrastructure, not housekeeping. Kerberos rejects tickets beyond five minutes of skew, and a SIEM correlating events across hosts is only as trustworthy as the clocks feeding it.
 
 ## 4. Install the AD DS and DNS roles
 

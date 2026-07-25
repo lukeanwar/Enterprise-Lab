@@ -318,7 +318,19 @@ From your Mac terminal:
 
 ## Lessons learned
 
-_Filled in at the end of the session._
+**The default-allow LAN rules quietly undo the entire design.** pfSense auto-creates "Default allow LAN to any" rules when it configures the LAN interface. They sit at the bottom of the list and permit everything the specific rules above them were carefully written to restrict. Leaving them in place means the segmentation looks correct in the UI and does nothing in practice. This is a good illustration of why firewall rulesets need reading bottom-up as well as top-down — a permissive catch-all makes everything above it decorative.
+
+**Deleting those rules has a side effect worth knowing about.** ICMP to the firewall's own MGMT address stopped working, because the Anti-Lockout Rule only covers TCP 80 and 443. Traffic destined for the firewall itself needs its own explicit rule — it isn't covered by rules that point outward through it. The same lesson resurfaced later when NTP to pfSense needed a "This Firewall (self)" rule of its own.
+
+**"WAN net" does not mean "the internet".** The egress rules initially used "WAN subnets" as the destination, which only matches the directly-attached WAN subnet — `192.168.2.0/24` in this case — and not public addresses at all. The rules looked right and permitted nothing useful. Changing the destination to `any` fixed it, but `any` is broader than intended because it includes internal segments on the same ports.
+
+**The fix for that is an inverted match, and it's how production firewalls scope egress.** Defining an `RFC1918_Internal` alias listing every internal subnet, then using `!RFC1918_Internal` as the destination, produces a rule that means "the internet, and specifically not anything internal". That distinction matters: a rule permitting TCP/443 to `any` also permits CORP to reach the DMZ on 443, which is exactly what the segmentation is supposed to prevent.
+
+**Aliases turn an unreadable ruleset into a legible one.** pfSense rules match a single port or a contiguous range, so without aliases this design would have needed roughly 25 rules. Grouping ports by purpose — `Win_Admin_Ports`, `Wazuh_Agent_Ports`, `Internet_Egress_Ports` — brought it down to around 13, and more importantly made each rule state its intent. Someone reading the list can see what it's for without decoding port numbers.
+
+**An IP conflict with the host forced a redesign of the addressing.** VMware Fusion assigns the Mac `.1` on each vmnet it connects to, which collided with pfSense sitting at `10.10.10.1`. Moving every pfSense interface to `.254` resolved it. Using `.254` for gateways is common practice in enterprise networks anyway, precisely because it keeps the low end of the range free.
+
+**Rules are evaluated on the interface where traffic enters.** Obvious once stated, but it changes how you think about writing them: a rule controlling CORP-to-SERVERS traffic belongs on the CORP tab, not the SERVERS tab. Return traffic needs no rule at all, because the firewall is stateful and tracks the connection.
 
 ---
 

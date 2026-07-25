@@ -107,7 +107,15 @@ You should see at least one `bridge` interface with an IP in `10.10.10.0/24`. Th
 
 ## Lessons learned
 
-_Filled in at the end of the session._
+**The Fusion UI actively fights this configuration.** The Subnet IP field is only editable while DHCP is enabled, so unchecking DHCP first leaves you unable to enter the subnet at all. The workaround — enter the subnet with DHCP on, Apply, then disable DHCP and Apply again — is not discoverable, and there's nothing in the interface to suggest the subnet persists afterwards. It does, and the config file confirms it.
+
+**Disabling DHCP on every custom network is the whole point.** Fusion wants to run a DHCP server on each vmnet by default. Leaving that on would mean two DHCP servers competing on the same segment once pfSense is configured in Session 3, and clients would get addresses and gateways from whichever answered first. Turning it off makes pfSense the single authority for addressing, which is what a real network looks like.
+
+**Do not tick the NAT option on the custom networks.** It's tempting because it gives VMs immediate internet access, but it NATs the segment straight to the Mac's connection and bypasses pfSense entirely — which would defeat the point of building a firewall. All internet egress in this lab goes through pfSense's WAN interface on `vmnet8`.
+
+**`ifconfig | grep vmnet` doesn't work on Fusion 13.x for macOS.** Most guides online still tell you to verify this way. Modern Fusion uses Apple's vmnet framework, so host-side interfaces appear as `bridge` interfaces and only for networks the Mac is actually connected to. Reading `/Library/Preferences/VMware Fusion/networking` directly is the reliable check and shows the full configuration for every vmnet, connected or not.
+
+**Only MGMT is connected to the host Mac, and that's deliberate.** It gives a management path to the pfSense web UI without putting the host on the segments carrying corporate or DMZ traffic. Worth noting the limitation honestly: it also means the Mac sits unmanaged on the management network, which a real environment would never allow.
 
 ---
 

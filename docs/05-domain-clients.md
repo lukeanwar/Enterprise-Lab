@@ -321,6 +321,14 @@ In Fusion: take a snapshot on `WIN-CLIENT01` named `Session 5 complete - domain 
 
 **Windows 11's OOBE fights hard against local accounts.** The `Shift+F10 → start ms-cxh:localonly` trick worked on this build. On older ISOs it's `oobe\bypassnro` followed by a reboot. Every domain-joined enterprise deployment hits this — worth having both options memorised.
 
+**Advanced audit policy proved unreliable to apply, and diagnosing it was the most instructive part of the session.** The GPO showed `Audit Process Creation = Success` in the editor, `gpresult /r /scope:computer` confirmed `Lab - Security Auditing Baseline` was applied, no legacy audit policy was defined anywhere to conflict with it — and yet `auditpol /get /subcategory:"Process Creation"` on the client reported `No Auditing`. Process creation events appeared briefly at boot and then stopped.
+
+The diagnostic path was worth walking: check the GPO's actual settings, check the legacy `Local Policies → Audit Policy` node for conflicts, check the `Audit: Force audit policy subcategory settings` security option (which was `Not Defined` and is now explicitly `Enabled`, matching CIS benchmark guidance), then test whether a policy refresh clears the setting. Setting the subcategory manually with `auditpol /set /subcategory:"Process Creation" /success:enable` confirmed the logging pipeline itself works end to end — Event 4688 fired with the full command line populated.
+
+**What fixed it** was defining `Audit: Force audit policy subcategory settings (Windows Vista or later)` explicitly as **Enabled**, rather than leaving it `Not Defined` and relying on the operating system default. The setting has survived reboots since. It appears in the CIS benchmarks for exactly this reason — an unstated default is not the same as a stated one, and depending on one is how configuration drifts without anyone noticing.
+
+The lesson for a SOC context is the important one: **a GPO reporting as "applied" does not mean its settings are in effect on the endpoint.** `gpresult` tells you a policy object was delivered; only `auditpol` tells you what the machine is actually auditing. Anyone relying on Group Policy for detection coverage needs to verify at the endpoint, not the policy layer, or they end up with blind spots they don't know about.
+
 **A computer account has to be moved out of the default `Computers` container before OU-linked GPOs will apply.** `Lab - Workstation Lockdown` did not reach the client until `WIN-CLIENT01` was moved into the `Workstations` OU. Anyone building a new AD environment will trip over this at least once.
 
 ---
