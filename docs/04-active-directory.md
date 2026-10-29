@@ -54,10 +54,10 @@ Once logged in as Administrator, do the following before installing any roles.
 
 ### Rename the computer
 
-The default name is something like `WIN-XXXXXX`. Rename it to `DC01`.
+The default name is something like `WIN-XXXXXX`. Rename it to `WIN-DC01`.
 
 - **Server Manager → Local Server → Computer name** (click the current name)
-- **Change** → enter `DC01` → OK
+- **Change** → enter `WIN-DC01` → OK
 - Restart when prompted.
 
 ### Set a static IP
@@ -110,7 +110,7 @@ In **Server Manager**:
 
 1. **Manage → Add Roles and Features**
 2. Installation Type: **Role-based or feature-based installation.**
-3. Server selection: the default (DC01) is fine.
+3. Server selection: the default (WIN-DC01) is fine.
 4. Server Roles: tick **Active Directory Domain Services**. A pop-up will appear to add the required management features — click **Add Features**.
 5. Also tick **DNS Server**. Same pop-up — click **Add Features**.
 6. Click Next through Features, AD DS, DNS Server confirmation pages.
@@ -147,7 +147,7 @@ Open a Command Prompt as Administrator and run:
 nltest /dsgetdc:corp.lab.local
 ```
 
-You should see DC01 listed as the DC for the domain.
+You should see WIN-DC01 listed as the DC for the domain.
 
 ```
 dcdiag /q
@@ -161,7 +161,7 @@ nslookup
 > _ldap._tcp.corp.lab.local
 ```
 
-You should see `dc01.corp.lab.local` as the LDAP server. This is what domain-joined machines will use to find the DC during authentication.
+You should see `win-dc01.corp.lab.local` as the LDAP server. This is what domain-joined machines will use to find the DC during authentication.
 
 ## 7. Update pfSense's CORP DHCP scope
 
@@ -295,7 +295,7 @@ In Fusion: **Virtual Machine → Snapshots → Take Snapshot.** Name it `Session
 - [ ] WIN-DC01 VM running on the CORP segment with static IP `10.10.20.10`
 - [ ] Promoted to Domain Controller for `corp.lab.local`, NetBIOS `CORP`
 - [ ] DNS role installed and integrated with AD
-- [ ] `nltest /dsgetdc:corp.lab.local` returns DC01
+- [ ] `nltest /dsgetdc:corp.lab.local` returns WIN-DC01
 - [ ] `dcdiag /q` produces no errors
 - [ ] OU structure built (Departments + sub-OUs, Admin Accounts, Service Accounts, Workstations)
 - [ ] 10 department users + 1 admin + 2 service accounts created in their correct OUs

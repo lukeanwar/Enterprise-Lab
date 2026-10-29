@@ -42,12 +42,14 @@ Boot the VM and work through the installer.
 
 1. Language and keyboard: your preference.
 2. Installation type: **Ubuntu Server** (not minimised).
-3. **Network configuration** — this matters. The SERVERS segment has no DHCP server, so configure a static address manually. Select the interface, then **Edit IPv4 → Manual**:
+3. **Network configuration** — this matters. pfSense serves DHCP on SERVERS (the `.100`–`.200` range from Session 3), so the installer will pick up an address automatically. Override it with a static one: a server other machines connect to by IP should not have an address that can change. Select the interface, then **Edit IPv4 → Manual**:
    - Subnet: `10.10.30.0/24`
    - Address: `10.10.30.10`
    - Gateway: `10.10.30.254`
-   - Name servers: `10.10.20.10` (the Domain Controller)
+   - Name servers: `10.10.30.254` (pfSense)
    - Search domains: `corp.lab.local`
+
+   `.10` sits below the DHCP pool, so there's no risk of pfSense handing the same address to something else later — the same reasoning that put the Domain Controller at `10.10.20.10`.
 4. Proxy: leave blank.
 5. Mirror: accept the default.
 6. Storage: **Use an entire disk**, no LVM needed for a lab. Confirm the destructive write.
@@ -60,6 +62,37 @@ Boot the VM and work through the installer.
 9. Skip all the snap suggestions.
 10. Let it install, then **Reboot Now**.
 
+### Open the firewall paths this host needs
+
+The SERVERS segment was built in Session 3 with a single rule: internet egress to `!RFC1918_Internal`. Because that destination excludes every internal subnet, this host has no permitted path to pfSense itself — so no DNS, and no ping to its own gateway. The mirror step during install will fail with "Temporary failure resolving" until that's fixed.
+
+Add two rules under **Firewall → Rules → SERVERS**, both above the implicit deny:
+
+| Action | Protocol | Source | Destination | Ports | Description |
+|---|---|---|---|---|---|
+| Pass | TCP/UDP | SERVERS subnets | This Firewall (self) | 53 | Allow SERVERS hosts to resolve DNS via pfSense |
+| Pass | ICMP (any) | SERVERS subnets | This Firewall (self) | — | ICMP to firewall (diagnostics) |
+
+Save and **Apply Changes**.
+
+This is the third time in the build that traffic aimed *at* the firewall has needed its own rule — ICMP on MGMT in Session 3, NTP on CORP in Session 4, DNS here. Rules written to let a segment reach *through* the firewall never cover traffic terminating *on* it. Worth internalising, because it's a recurring source of confusion with any default-deny design.
+
+### Let pfSense answer for the AD zone
+
+pfSense can now resolve public names, but it knows nothing about `corp.lab.local` — that zone is authoritative on the Domain Controller. Rather than pointing every host at the DC directly, configure conditional forwarding once on the resolver.
+
+**Services → DNS Resolver → General Settings → Domain Overrides → Add**:
+
+| Field | Value |
+|---|---|
+| Domain | `corp.lab.local` |
+| IP Address | `10.10.20.10` |
+| Description | Forward AD zone queries to the domain controller |
+
+Save and **Apply Changes**. Also confirm **Enable DNSSEC Support** is unticked — internal zones have no public chain of trust, so validation fails against them and the override silently returns nothing.
+
+Every segment now gets working internal *and* external resolution from a single resolver, and no individual host needs to know where the AD zone lives. This is the standard arrangement wherever an internal AD domain sits alongside a separate DNS resolver.
+
 ### Verify connectivity before going further
 
 Log in and confirm the basics:
@@ -67,12 +100,76 @@ Log in and confirm the basics:
 ```bash
 ip a
 ping -c 3 10.10.30.254
-nslookup dc01.corp.lab.local
+nslookup ubuntu.com
+nslookup win-dc01.corp.lab.local
 ```
 
-The first shows your static IP is set. The second proves you can reach the firewall. The third proves DNS resolution through the DC is working across segments — which also confirms your SERVERS-to-CORP firewall rule for DNS is correct.
+In order: the static IP is set; the firewall is reachable; external resolution works; and the domain override is forwarding AD queries correctly.
 
-If the `nslookup` fails, check the pfSense SERVERS rules allow UDP/53 to `10.10.20.10` before continuing. Wazuh doesn't strictly need it, but a server that can't resolve names will make everything else harder.
+> **Note the hostname.** It is `win-dc01`, not `dc01` — matching the VM name and the `ROLE-NAME##` convention from Session 1. An authoritative `NXDOMAIN` for a name that doesn't exist looks identical to a broken resolver at first glance, so check the name before assuming the configuration is at fault. `drill <name> @10.10.20.10` from pfSense's Diagnostics → Command Prompt is the quickest way to tell: the `aa` flag in the response means the server answered authoritatively, which is to say the configuration is working and the question was wrong.
+
+If `nslookup ubuntu.com` fails, the port 53 rule above is missing or wasn't applied. If only the `win-dc01` lookup fails, the problem is the domain override or the DC being powered off. Also flush the client cache with `sudo resolvectl flush-caches` after any fix — systemd-resolved caches negative answers and will keep serving a stale `NXDOMAIN`.
+
+### Set up remote access to the lab hosts
+
+Working inside Fusion's console windows gets old quickly — no copy-paste, awkward scrolling, and a separate window per machine. From here on it's worth administering each host the way you actually would in a real environment: SSH to Linux, RDP to Windows.
+
+#### First: routes from the host machine
+
+Fusion connects the host to the MGMT segment only. Traffic to any other segment has nowhere to go until you add a route pointing it at the firewall:
+
+```bash
+sudo route -n add -net 10.10.20.0/24 10.10.10.254   # CORP
+sudo route -n add -net 10.10.30.0/24 10.10.10.254   # SERVERS
+sudo route -n add -net 10.10.40.0/24 10.10.10.254   # DMZ
+```
+
+macOS discards manually added routes on reboot, so these need repeating each session.
+
+That the host can't reach other segments without this is the segmentation working, not a fault. Every one of those connections is also matched against a firewall rule on the way through — the MGMT rules from Session 3 are what permit SSH on 22, RDP on 3389 and the Wazuh dashboard on 443.
+
+#### SSH to the Ubuntu server
+
+OpenSSH was installed during setup, so this works immediately:
+
+```bash
+ssh labadmin@10.10.30.10
+```
+
+Confirm the service is running if it refuses the connection:
+
+```bash
+sudo systemctl status ssh
+```
+
+#### RDP to the Windows hosts
+
+**Windows has no SSH server by default.** OpenSSH Server is an optional feature that isn't installed unless you add it, so `ssh` to a Windows box will simply hang — nothing is listening on port 22. Windows hosts are administered over RDP or WinRM instead.
+
+**Enable RDP** on each Windows machine (it's off by default on Windows Server):
+
+- **Settings → System → Remote Desktop → On**
+
+**Install a client** on the host machine — Microsoft Remote Desktop, free from the App Store.
+
+**Add each machine** with **+ → Add PC**:
+
+| Field | `WIN-DC01` | `WIN-CLIENT01` |
+|---|---|---|
+| PC name | `10.10.20.10` | `10.10.20.100` |
+| Credentials | `CORP\adm-luke` | `CORP\adm-luke` |
+| Friendly name | `WIN-DC01` | `WIN-CLIENT01` |
+
+Use the **IP address, not the hostname.** The host machine resolves DNS through whatever your home router provides, which knows nothing about `corp.lab.local` — the domain override on pfSense only helps machines that use pfSense as their resolver, and the host isn't one of them.
+
+Use `adm-luke` rather than the built-in Administrator. A named admin account means the logs show *who* performed an action rather than just "Administrator", which is the difference between an audit trail and a shrug. Note also that only Domain Admins can log on interactively to a domain controller by default — `james.harper` would be refused even with the correct password, which is deliberate.
+
+**Two settings worth changing** once the connection is saved (right-click the tile → Edit):
+
+- **Display → Update the session resolution on resize**, or the session renders at a fixed size and gets clipped by the window
+- **Devices & Audio → Clipboard**, which gives you copy-paste between the host machine and the VM — worth having before pasting the agent install commands in the next section
+
+> **The client's address comes from DHCP**, so `10.10.20.100` may differ on your build. Check with `ipconfig` on the machine, or look at **Status → DHCP Leases** in pfSense. If you'd rather it stayed put, add a static mapping in **Services → DHCP Server → CORP** keyed on its MAC address — a DHCP reservation is centrally managed and visible on the firewall, which a host-side static address is not.
 
 ### Update the system
 
@@ -93,7 +190,7 @@ Confirm the local time matches reality and the timezone is correct. A SIEM corre
 Wazuh provides an assisted installation script that deploys all three components (indexer, server, dashboard) onto a single host. For a lab this is the right choice; a production deployment would separate them.
 
 ```bash
-curl -sO https://packages.wazuh.com/4.12/wazuh-install.sh
+curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh
 sudo bash ./wazuh-install.sh -a
 ```
 
@@ -185,13 +282,21 @@ You'll want to reach the Wazuh web interface from the Kali jump box in Session 9
 
 ## 5. Log into the dashboard
 
-From a machine on MGMT, browse to:
+From the host machine — which Fusion connects to the MGMT segment, and which is therefore the only management host on the network until the Kali box arrives in Session 9 — browse to:
 
 ```
 https://10.10.30.10
 ```
 
 Accept the self-signed certificate warning — the installer generates its own CA, and in a lab that's fine. In production you'd replace these with certificates from a trusted internal CA.
+
+> **If the page never loads**, the host needs a route to the SERVERS segment. Fusion gives it an address on MGMT only, so traffic to `10.10.30.0/24` has nowhere to go until you tell it to use the firewall:
+>
+> ```bash
+> sudo route -n add -net 10.10.30.0/24 10.10.10.254
+> ```
+>
+> macOS discards manually added routes on reboot, so this needs repeating per session. That the host can only reach MGMT directly, and everything else has to be routed through pfSense and matched against a rule, is the segmentation working as designed.
 
 Log in as `admin` with the generated password. You'll land on the Wazuh overview page with no agents enrolled yet.
 
@@ -269,35 +374,96 @@ You should see Event 4625 (failed logon) entries, and a 4740 (account lockout). 
 
 Unlock the account afterwards in Active Directory Users and Computers: right-click the user → Properties → Account → untick "Unlock account".
 
-## 10. Deploy the agent to the Ubuntu host itself
+## 10. Linux telemetry — nothing to install
 
-The Wazuh server can monitor itself, which gives you Linux telemetry alongside the Windows estate.
+The obvious next step is to deploy an agent to the Ubuntu host so the Linux side is monitored too. Don't — it will fail, and the failure explains why:
 
-```bash
-sudo /var/ossec/bin/agent-auth -m 10.10.30.10
+```
+dpkg: regarding wazuh-agent_4.14.9-1_amd64.deb containing wazuh-agent:
+ wazuh-agent conflicts with wazuh-manager
+  wazuh-manager (version 4.14.9-1) is present and installed.
 ```
 
-Or simply enrol it through the dashboard wizard using the Linux package option, the same way you did for Windows.
+**The manager already monitors itself.** It runs its own log collector and file integrity checking locally and registers as **agent 000**, so the Linux telemetry is there from the moment the server is installed. The two packages conflict deliberately because both want to own `/var/ossec`.
 
-## 11. Take a VM snapshot
+Confirm it:
+
+```bash
+sudo /var/ossec/bin/agent_control -l
+```
+
+The output lists `ID: 000` with the server's own hostname alongside your enrolled Windows agents.
+
+Worth knowing for a production deployment: because the manager self-monitors, splitting Wazuh across multiple servers means each additional host — a dedicated indexer, say — *does* need its own agent. Only the manager host is covered automatically.
+
+## 11. Review and clean up the firewall rules
+
+Four sessions of adding rules have accumulated some duplication, and now is a good moment to read the whole ruleset back. Reviewing your own firewall is a routine task in security operations — rulesets grow by addition and almost never by subtraction, until nobody can say what half of them are for.
+
+Go through each tab under **Firewall → Rules** and pay attention to the **States** column. It shows how many connections currently match each rule and how much traffic has passed through it. A rule reading `0/0 B` has never matched a single packet.
+
+### What the review turned up
+
+**MGMT — a redundant pair.** Two rules both granted dashboard access:
+
+| Rule | Destination | Ports |
+|---|---|---|
+| MGMT access to the Wazuh dashboard | `Wazuh_Manager` (host alias) | 443 |
+| Wazuh dashboard | SERVERS subnets | `Wazuh_Dashboard_Ports` |
+
+The second is a superset of the first — the whole subnet rather than one host, and both ports rather than one. The first can never match anything the second wouldn't.
+
+Keep the **host-specific** rule and delete the subnet-wide one. It permits access to one machine rather than to anything that ever gets built on that segment, which is the tighter expression of the same intent.
+
+**CORP — the same pattern again.** `CORP → Wazuh_Manager : Wazuh_Agent_Ports` had passed 39 MiB of agent traffic. `CORP → SERVERS subnets : Wazuh_Agent_Ports` had passed nothing, because the first rule matches first. Deleted the broader one.
+
+**CORP — two rules that can never match.** The Session 1 plan assumed internal DNS and NTP would live on the SERVERS segment, so rules were written for `CORP → SERVERS` on 53 and 123. The build went differently: DNS for CORP clients is the Domain Controller, which sits on CORP itself, and time now comes from the hypervisor. Both rules read `0/0 B` and always would. Deleted.
+
+### Why this matters beyond tidiness
+
+Every rule is something a reviewer has to understand and a change has to be tested against. A ruleset containing dead entries is one where nobody can confidently say what is actually enforced, and that uncertainty is what allows a genuinely bad rule to sit unnoticed among the harmless ones.
+
+The States column is the quickest honest answer to "is this rule doing anything?" — and it's worth getting into the habit of checking it before adding yet another rule to work around a problem an existing rule already covers.
+
+## 12. Take a VM snapshot
 
 Snapshot `SRV-WAZUH01` as `Session 6 complete - Wazuh deployed, agents enrolled`. Take fresh snapshots of `WIN-DC01` and `WIN-CLIENT01` too, since both now have agents installed.
 
-## 12. Verification checklist
+## 13. Verification checklist
 
 - [ ] `SRV-WAZUH01` running on SERVERS at `10.10.30.10` with a static IP
 - [ ] All three Wazuh services active (`indexer`, `manager`, `dashboard`)
 - [ ] Dashboard reachable over HTTPS from MGMT
 - [ ] pfSense aliases `Wazuh_Agent_Ports` and `Wazuh_Manager` created
 - [ ] CORP → Wazuh rule in place; dashboard access restricted to MGMT
-- [ ] Agents enrolled and Active for `WIN-DC01`, `WIN-CLIENT01`, and the Ubuntu host
+- [ ] Agents enrolled and Active for `WIN-DC01` and `WIN-CLIENT01`
+- [ ] Ubuntu host visible as agent 000 (`agent_control -l`) — self-monitored by the manager, no agent install needed
 - [ ] Event 4688 with a command line located in the dashboard via search
 - [ ] A failed-authentication alert deliberately triggered and found
+- [ ] Firewall ruleset reviewed; redundant and unmatched rules removed
 - [ ] VM snapshots taken
 
 ## Lessons learned
 
-_Filled in at the end of the session._
+**Traffic destined for the firewall itself always needs its own rule.** This came up for the third time in the build. The SERVERS segment had an internet egress rule using `!RFC1918_Internal`, which by definition excludes pfSense's own address — so the host could reach the internet but couldn't resolve DNS or ping its gateway. Rules written to let a segment pass *through* the firewall never cover traffic terminating *on* it. Once that clicked, the ICMP rule from Session 3 and the NTP rule from Session 4 stopped looking like exceptions and started looking like the same rule.
+
+**Conditional DNS forwarding is how a split environment should be wired.** The Linux host needed to resolve both public names and the internal AD zone. Pointing it at the Domain Controller would have worked but tied one host to one server; pointing it at pfSense lost the AD zone. The answer was a domain override on pfSense: resolve everything normally, except `corp.lab.local`, which forwards to the DC. Configure it once on the resolver and every segment inherits it. DNSSEC has to be off for this — internal zones have no public chain of trust, so validation fails silently against them.
+
+**An authoritative NXDOMAIN is not a broken resolver.** An hour went into debugging DNS that turned out to be working perfectly. The DC's hostname is `WIN-DC01`, and every lookup was for `dc01` — so the server was correctly answering "that name does not exist". The giveaway was in the response all along: `drill` showed the `aa` (authoritative answer) flag and an SOA record naming `win-dc01`. When a lookup fails, read the response rather than assuming the configuration is at fault, and check the name you're asking for before changing anything.
+
+**Windows has no SSH server by default.** Obvious in hindsight, but worth stating: `ssh administrator@10.10.20.10` will hang forever because nothing is listening on port 22. Windows hosts are administered over RDP or WinRM. RDP also needs enabling explicitly — it's off by default on Windows Server.
+
+**The host machine needs static routes to reach anything but MGMT.** Fusion gives the host an address on the management segment only. Reaching SERVERS or CORP from the Mac requires `sudo route -n add -net 10.10.30.0/24 10.10.10.254`, and macOS discards those on reboot. Mildly annoying, but it's the segmentation design working — nothing on another segment is reachable without a route and a matching firewall rule.
+
+**`msiexec /q` hides failures.** The agent install appeared to succeed and then `NET START WazuhSvc` reported the service didn't exist. Quiet mode suppresses errors along with everything else, so a non-elevated install failed silently. Dropping `/q` and adding `/l*v` for a verbose log makes failures visible. The underlying cause was UAC: being a Domain Admin isn't the same as running elevated.
+
+**Agent enrolment lags behind installation.** Both agents took 30–60 seconds to appear in the dashboard after the service started. Easy to start debugging a system that's merely still handshaking.
+
+**Severity is a property of the pattern, not the event.** A single failed logon scores level 5, because people mistype passwords constantly. Severity climbs through composite rules that fire on *N events matching a pattern within a window* — repeated failures, then a lockout, then spraying across accounts. If every failed login were High, nobody would read the alerts. That correlation step is what separates a SIEM from a log archive.
+
+**Don't screenshot credentials.** The installer prints the admin password at the end, and the obvious instinct is to capture the terminal showing "Installation finished". Anything committed to a public repo is permanent — git history keeps it even after the file is deleted.
+
+**Firewall rules accumulate faster than they get removed.** Reading the whole ruleset back at the end of the session turned up four rules that were either redundant or could never match: two subnet-wide rules shadowed by tighter host-specific ones, and two written against an earlier plan for where DNS and NTP would live. None of them were dangerous — but none of them were doing anything either, and a ruleset nobody can account for in full is one where a genuinely bad rule has somewhere to hide. The States column makes this easy to check: a rule showing `0/0 B` has never passed a packet, and is worth either justifying or deleting.
 
 ---
 

@@ -82,7 +82,7 @@ Then check the DC is resolvable:
 
 ```
 nslookup corp.lab.local
-nslookup dc01.corp.lab.local
+nslookup win-dc01.corp.lab.local
 ```
 
 Both should return `10.10.20.10`.
@@ -309,7 +309,7 @@ In Fusion: take a snapshot on `WIN-CLIENT01` named `Session 5 complete - domain 
 - [ ] `gpresult /r` on the client lists all three GPOs as applied
 - [ ] `auditpol /get /category:*` shows Success/Failure auditing where configured
 - [ ] Event ID 4688 in the Security log shows the command line for a test process
-- [ ] VM snapshots taken on both DC01 and WIN-CLIENT01
+- [ ] VM snapshots taken on both WIN-DC01 and WIN-CLIENT01
 
 ## Lessons learned
 
